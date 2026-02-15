@@ -206,42 +206,75 @@ class CloudflareSpeedTestIStoreOS:
                 print(f"  ⚠ 文件不可执行，设置权限...")
                 cfst_path.chmod(0o755)
             
-            # 尝试不同的版本参数
+            # 在 iStoreOS/OpenWrt 上，第一次运行二进制文件可能需要额外时间
+            # 添加预热步骤：先运行一次简单的命令
+            print(f"  ⚠ 预热二进制文件（iStoreOS/OpenWrt 兼容性）...")
+            try:
+                # 尝试运行一个简单的命令来预热
+                subprocess.run(
+                    [str(cfst_path), "--help"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+            except:
+                # 预热失败也没关系，继续验证
+                pass
+            
+            # 尝试不同的版本参数，增加超时时间并添加重试
             version_params = ["--version", "-version", "-v", "--v", "-V", "--V"]
             
-            for param in version_params:
-                try:
-                    print(f"  ⚠ 尝试验证参数: {param}")
-                    result = subprocess.run(
-                        [str(cfst_path), param],
-                        capture_output=True,
-                        text=True,
-                        timeout=5
-                    )
-                    
-                    if result.returncode == 0:
-                        version_output = result.stdout.strip() or result.stderr.strip()
-                        if version_output:
-                            print(f"  ✓ 验证成功: {version_output}")
+            max_retries = 3
+            for attempt in range(max_retries):
+                for param in version_params:
+                    try:
+                        if attempt > 0:
+                            print(f"  ⚠ 尝试验证参数: {param} (第 {attempt + 1} 次重试)")
                         else:
-                            print(f"  ✓ 验证成功 (无版本输出)")
-                        return True
-                    elif "flag provided but not defined" in result.stderr:
-                        # 参数不支持，尝试下一个
-                        continue
-                    else:
-                        # 其他错误，可能是二进制文件有问题
-                        print(f"  ✗ 验证失败，退出码: {result.returncode}")
-                        if result.stderr:
-                            print(f"    错误输出: {result.stderr[:100]}")
-                        break
+                            print(f"  ⚠ 尝试验证参数: {param}")
                         
-                except subprocess.TimeoutExpired:
-                    print(f"  ✗ 验证超时")
-                    return False
-                except Exception as e:
-                    print(f"  ✗ 验证异常: {e}")
-                    continue
+                        # 增加超时时间到15秒，特别是对于ARM设备
+                        timeout_seconds = 15 if attempt == 0 else 20
+                        result = subprocess.run(
+                            [str(cfst_path), param],
+                            capture_output=True,
+                            text=True,
+                            timeout=timeout_seconds
+                        )
+                        
+                        if result.returncode == 0:
+                            version_output = result.stdout.strip() or result.stderr.strip()
+                            if version_output:
+                                print(f"  ✓ 验证成功: {version_output}")
+                            else:
+                                print(f"  ✓ 验证成功 (无版本输出)")
+                            return True
+                        elif "flag provided but not defined" in result.stderr:
+                            # 参数不支持，尝试下一个
+                            continue
+                        else:
+                            # 其他错误，可能是二进制文件有问题
+                            print(f"  ✗ 验证失败，退出码: {result.returncode}")
+                            if result.stderr:
+                                print(f"    错误输出: {result.stderr[:100]}")
+                            break
+                            
+                    except subprocess.TimeoutExpired:
+                        print(f"  ✗ 验证超时 (第 {attempt + 1} 次尝试)")
+                        if attempt < max_retries - 1:
+                            print(f"    等待 2 秒后重试...")
+                            time.sleep(2)
+                        else:
+                            print(f"  ✗ 所有重试均超时")
+                            return False
+                    except Exception as e:
+                        print(f"  ✗ 验证异常: {e}")
+                        if attempt < max_retries - 1:
+                            print(f"    等待 2 秒后重试...")
+                            time.sleep(2)
+                        else:
+                            return False
+                        continue
             
             # 如果所有参数都失败，尝试运行不带参数的帮助命令
             print(f"  ⚠ 尝试运行帮助命令...")
@@ -250,7 +283,7 @@ class CloudflareSpeedTestIStoreOS:
                     [str(cfst_path)],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=15
                 )
                 
                 if result.returncode == 0 or result.returncode == 1:  # 帮助命令通常返回0或1
