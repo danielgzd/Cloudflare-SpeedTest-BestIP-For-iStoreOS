@@ -27,27 +27,30 @@ git pull origin main || {
     git reset --hard origin/main
 }
 
-# 3. 运行测速脚本（使用优化配置）
+# 3. 运行测速脚本（无地区限制，直接获取前100个最快IP）
 echo "3. 运行测速脚本..."
-echo "   使用优化配置：每个地区最多20个IP，总共100个IP"
-python3 istoreos_cf_speedtest.py --max-per-region 20 --max-total 100 --regions "US,GB,HK,JP,SG,DE,FR,NL,CA,AU,BR,EU,ASIA,Other" || {
+echo "   配置：无地区限制，直接获取速度前100个IP"
+python3 istoreos_cf_speedtest.py --max-per-region 1000 --max-total 100 --regions "US,GB,HK,JP,SG,DE,FR,NL,CA,AU,BR,EU,ASIA,Other" || {
     echo "  测速失败，尝试使用默认配置..."
     python3 istoreos_cf_speedtest.py
 }
 
-# 4. 修复 best_ip.txt 文件，确保有100个IP
-echo "4. 修复 best_ip.txt 文件..."
-if [ -f "fix_best_ip.py" ]; then
-    echo "  运行修复脚本..."
-    python3 fix_best_ip.py
-else
-    echo "  警告：修复脚本 fix_best_ip.py 不存在"
-    echo "  尝试从 result.csv 直接提取IP..."
-    if [ -f "result.csv" ]; then
-        # 简单的提取逻辑
-        tail -n +2 result.csv | cut -d',' -f1 | head -100 > best_ip.txt
-        echo "  已提取 $(wc -l < best_ip.txt) 个IP到 best_ip.txt"
+# 4. 直接提取速度前100个IP（不限制地区）
+echo "4. 提取速度前100个IP..."
+if [ -f "result.csv" ]; then
+    echo "  从 result.csv 提取速度最快的100个IP..."
+    # 提取IP和延迟，按延迟排序，取前100个
+    tail -n +2 result.csv | awk -F',' '{print $1 "," $5}' | sort -t',' -k2,2n | head -100 | cut -d',' -f1 > best_ip.txt
+    ip_count=$(wc -l < best_ip.txt)
+    echo "  已提取 $ip_count 个最快IP到 best_ip.txt"
+    
+    # 显示前10个最快IP
+    if [ $ip_count -gt 0 ]; then
+        echo "  前10个最快IP:"
+        head -10 best_ip.txt | awk '{print "    " NR ". " $1}'
     fi
+else
+    echo "  错误：result.csv 文件不存在"
 fi
 
 # 5. 检查IP数量
@@ -57,11 +60,11 @@ if [ -f "best_ip.txt" ]; then
     echo "  best_ip.txt 包含 $ip_count 个IP"
     
     if [ $ip_count -lt 50 ]; then
-        echo "  警告：IP数量不足，尝试重新提取..."
-        if [ -f "result.csv" ]; then
-            tail -n +2 result.csv | cut -d',' -f1 | head -100 > best_ip.txt
-            echo "  重新提取后：$(wc -l < best_ip.txt) 个IP"
-        fi
+        echo "  警告：IP数量不足！"
+    elif [ $ip_count -eq 100 ]; then
+        echo "  ✓ 成功获取100个最快IP"
+    else
+        echo "  ⚠ 获取了 $ip_count 个IP（目标：100个）"
     fi
 fi
 
