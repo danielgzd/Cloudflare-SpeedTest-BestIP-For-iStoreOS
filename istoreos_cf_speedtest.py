@@ -301,7 +301,7 @@ class CloudflareSpeedTestIStoreOS:
             print(f"  ✗ 验证过程异常: {e}")
             return False
     
-    def run_command(self, cmd: list[str], cwd: Path | None = None) -> bool:
+    def run_command(self, cmd: list[str], cwd=None) -> bool:
         """运行命令并显示输出"""
         print(">>", " ".join(cmd))
         try:
@@ -320,7 +320,7 @@ class CloudflareSpeedTestIStoreOS:
         first_octet = int(ip_parts[0])
         second_octet = int(ip_parts[1])
         
-        # 美国IP段
+        # 美国IP段 (US)
         if first_octet == 104 and 16 <= second_octet <= 31:
             return "US"
         elif first_octet == 172 and 64 <= second_octet <= 71:
@@ -333,30 +333,76 @@ class CloudflareSpeedTestIStoreOS:
             return "US"
         elif first_octet == 172 and 65 <= second_octet <= 67:
             return "US"
+        elif 172 <= first_octet <= 173:  # 扩展美国IP段
+            return "US"
         
-        # 英国IP段
+        # 英国IP段 (GB)
         elif first_octet == 141 and second_octet == 101:
             return "GB"
         
-        # 日本IP段
+        # 日本IP段 (JP)
         elif first_octet == 103 and second_octet == 21:
             return "JP"
+        elif first_octet == 103 and second_octet == 22:
+            return "JP"
         
-        # 韩国IP段
+        # 韩国IP段 (KR)
         elif first_octet == 103 and second_octet == 22:
             return "KR"
+        elif first_octet == 103 and second_octet == 23:
+            return "KR"
         
-        # 新加坡IP段
+        # 新加坡IP段 (SG)
         elif first_octet == 103 and second_octet == 31:
             return "SG"
+        elif first_octet == 103 and second_octet == 4:
+            return "SG"
         
-        # 香港IP段
+        # 香港IP段 (HK)
         elif first_octet == 190 and second_octet == 93:
             return "HK"
+        elif first_octet == 188 and second_octet == 114:
+            return "HK"
         
-        # 印度IP段
+        # 印度IP段 (IN)
         elif first_octet == 197 and second_octet == 234:
             return "IN"
+        
+        # 德国IP段 (DE)
+        elif first_octet == 188 and second_octet == 114:
+            return "DE"
+        
+        # 澳大利亚IP段 (AU)
+        elif first_octet == 104 and second_octet == 28:
+            return "AU"
+        
+        # 加拿大IP段 (CA)
+        elif first_octet == 104 and second_octet == 20:
+            return "CA"
+        
+        # 巴西IP段 (BR)
+        elif first_octet == 104 and second_octet == 24:
+            return "BR"
+        
+        # 法国IP段 (FR)
+        elif first_octet == 104 and second_octet == 27:
+            return "FR"
+        
+        # 荷兰IP段 (NL)
+        elif first_octet == 104 and second_octet == 18:
+            return "NL"
+        
+        # 其他地区 - 根据常见Cloudflare IP段分类
+        elif first_octet == 173 and second_octet == 245:
+            return "US"  # Cloudflare美国节点
+        elif first_octet == 198 and second_octet == 41:
+            return "US"  # Cloudflare美国节点
+        elif first_octet == 104 and second_octet <= 15:
+            return "US"  # Cloudflare美国节点
+        elif first_octet == 104 and 32 <= second_octet <= 47:
+            return "EU"  # 欧洲节点
+        elif first_octet == 104 and 48 <= second_octet <= 63:
+            return "ASIA"  # 亚洲节点
         
         # 其他地区
         else:
@@ -452,7 +498,7 @@ class CloudflareSpeedTestIStoreOS:
             print(f"✗ ip.txt 下载失败")
             return False
     
-    def prepare_cfst_binary(self) -> Path | None:
+    def prepare_cfst_binary(self):
         """准备 cfst 二进制文件"""
         # 根据URL确定文件扩展名
         cfst_url = self.get_cfst_url()
